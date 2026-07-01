@@ -1,0 +1,21 @@
+# ToolMaster 依赖包
+# 安装方式: pip install -r requirements.txt
+
+# 核心依赖（必须安装）
+pywin32>=305          # Windows API 访问，用于窗口枚举和基础操作
+
+# UI自动化（推荐安装）
+uiautomation>=2.0     # Windows UI Automation 深度扫描和控制
+
+# HTTP请求（必须安装）
+requests>=2.28        # Agent API 调用
+
+# 图像处理（可选安装，用于截图功能）
+Pillow>=9.0           # 截图支持
+
+# 语音输入（规划中，暂不安装）
+# SpeechRecognition>=3.10
+# PyAudio>=0.2.11
+
+# 配置文件解析（备选，当前使用JSON）
+# pyyaml>=6.0

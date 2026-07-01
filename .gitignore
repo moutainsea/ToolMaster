@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python/
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# ToolMaster data
+data/scans/
+data/pages/
+data/experience/
+data/screenshots/
+data/executions/
+
+# Trae IDE
+.trae/runtime/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Windows
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+
+# Config (API keys)
+config/secrets.json

@@ -1,0 +1,149 @@
+description: 本文档详细阐述本项目的组成模块、各模块的具体功能、数据流及交互关系
+
+structure: 窗口扫描模块 + 应用管理模块 + Agent模块 + 执行模块 + CLI模块
+
+data_flow:
+    CLI模块接收用户输入 -> Agent模块理解意图并规划 -> 
+    窗口扫描模块获取应用UI结构 -> Agent模块分析UI元素 -> 
+    执行模块按计划操作应用 -> 结果反馈Agent -> 经验记录
+
+file_structure:
+    data/
+        application_directory.txt      - 应用目录（应用名 | 扫描文件 | 分析文件 | 注册时间）
+        current_working.txt            - 当前工作状态
+        parallel_working.txt           - 并行执行规划方案
+        voice_input.txt                - 语音输入功能设计（暂不实现）
+        scans/
+            {window_name}_scan_element.txt         - 窗口UI元素原始扫描结果
+            {window_name}_scan_element_detail.txt  - AI分析后的元素详细解释
+        experience/
+            {app_name}_experience.txt  - 应用操作经验积累
+        executions/
+            execution_{task_id}.txt     - 任务执行日志
+        screenshots/
+            screenshot_{task_id}.png    - 执行过程中的截图
+        logs/
+            toolmaster_{date}.log       - 系统运行日志
+
+detail:
+    1.窗口扫描模块 (scanner.py - WindowScanner)：
+        a.扫描特定名称窗口的UI元素，保存扫描到的组件元素为 {window_name}_scan_element.txt
+           - 使用 win32gui (基础) 或 uiautomation (深度) 两种后端
+           - 递归遍历子组件，最大递归深度可配置（默认10层）
+           - 记录元素类型、名称、AutomationId、类名、坐标、可见性等属性
+        b.调用Agent对扫描结果进行智能分析，生成 {window_name}_scan_element_detail.txt
+           - 分析维度1：每个元素的【含义】——该元素是什么UI组件类型
+           - 分析维度2：每个元素的【作用】——该元素在应用中负责什么功能
+           - 分析维度3：【协作关系】——该元素是否需要配合其它组件使用
+           - 分析维度4：【操作方式】——如何与该元素交互（点击/输入/选择/拖拽等）
+           - 分析维度5：【依赖条件】——操作该元素的前置条件（是否需先激活、是否需要权限等）
+        c.列出当前系统所有可见窗口，支持关键字过滤
+
+    2.应用管理模块 (manager.py - ApplicationManager)：
+        a.对已扫描分析的系统应用，将其窗口名称和文件所在位置记录到 application_directory.txt
+           - 格式: 窗口名称 | 扫描文件名 | 分析文件名 | 注册时间
+           - 支持重复注册时自动更新
+           - 提供查询接口按名称检索应用详情
+        b.追踪当前正在使用的应用程序信息
+           - 记录当前操作的应用名称、执行的任务描述
+           - 持久化到 current_working.txt
+           - 支持设置和清除当前工作状态
+        c.提供状态概览功能，展示已注册应用列表和当前任务
+
+    3.Agent模块 (agent.py - Agent)：
+        a.连接云端/本地的大模型API，进行思考和行动
+           - think(prompt, context): 向LLM发送分析/规划请求，获取思考结果
+           - act(task_description, context): 将任务描述转换为结构化的JSON操作步骤
+           - 支持兼容OpenAI API格式的任意服务端
+           - 未配置API时使用本地模拟模式（用于开发调试）
+        b.记忆模块：结构化管理应用操作经验
+           - record_experience(app_name, task, result, lessons): 记录经验
+           - query_experience(app_name, query_hint): 查询历史经验
+           - 写入前自动检查去重，避免冗余记录
+           - 经验文件格式: {app_name}_experience.txt，按条目结构化存储
+           - 执行任务时遇到问题可参考此文件获得历史解决方案
+
+    4.执行模块 (executor.py - TaskExecutor)：
+        a.执行Agent规划的任务步骤
+           - 解析Agent生成的JSON执行计划，按步骤依次执行
+           - 支持操作类型: open/launch（启动应用）、click/press/select（点击选择）、
+             type/input/write（输入内容）、read/get/fetch（读取信息）、close/quit（关闭应用）
+           - 失败自动重试，重试次数可配置（默认3次）
+        b.结果反馈机制
+           - 文字反馈: 每步执行结果以文本形式记录
+           - 截图反馈: 当文字无法完整描述时，自动截取屏幕截图
+           - 执行日志: 完整保存到 execution_{task_id}.txt
+        c.并行执行规划
+           - 分析多任务间的依赖关系
+           - 识别可并行执行的任务（无依赖）和必须串行的任务（有依赖）
+           - 生成最优执行顺序和并行分组方案，保存到 parallel_working.txt
+
+    5.CLI模块 (cli.py - ToolMasterCLI)：
+        a.基于Python cmd模块的命令行交互界面
+           - 启动时显示欢迎信息和指引
+           - 提供完整的帮助系统 (help命令)
+           - 命令历史记录（最大可配置，默认50条）
+        b.命令体系:
+           - 扫描类: scan, windows
+           - 管理类: dir, status, register, set_task, clear_task
+           - 智能类: think, plan
+           - 经验类: record, experience
+           - 执行类: execute, parallel
+           - 配置类: config
+           - 规划类: voice
+        c.语音输入功能规划（暂不实现，设计文档保存在 voice_input.txt）
+           - 方案: 使用 speech_recognition 库进行语音转文字
+           - 输入: 实时录音 / WAV文件导入
+           - 输出: 识别文本传入CLI命令处理流程
+           - 依赖: SpeechRecognition + PyAudio
+
+module_interactions:
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                         CLI 模块                                │
+    │  接收用户命令，展示执行状态和应用目录                              │
+    └────┬──────┬──────────┬──────────┬───────────────────────────────┘
+         │      │          │          │
+    ┌────▼──┐ ┌─▼──────────▼────┐ ┌──▼───────────┐ ┌───────────────┐
+    │扫描模块│ │   Agent模块     │ │  执行模块     │ │  应用管理模块  │
+    │        │ │                 │ │               │ │               │
+    │扫描UI  │◄┤think()思考分析  ├►│执行操作步骤   │ │维护应用目录   │
+    │元素树  │ │act()生成计划    │ │截图/文字反馈  │ │追踪工作状态   │
+    │        │ │memory()记忆经验 │ │并行执行规划   │ │               │
+    └───┬────┘ └────────┬───────┘ └───────┬───────┘ └───────────────┘
+        │               │                 │
+        ▼               ▼                 ▼
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                     文件系统 (data/)                            │
+    │  scans/ │ experience/ │ executions/ │ screenshots/ │ logs/     │
+    │  application_directory.txt │ current_working.txt               │
+    │  parallel_working.txt │ voice_input.txt                        │
+    └─────────────────────────────────────────────────────────────────┘
+
+    交互流程示例:
+    1. 用户在CLI输入: scan Notepad
+    2. CLI调用 WindowScanner.scan_window_elements("Notepad")
+    3. 扫描模块扫描窗口元素 -> 保存到 data/scans/Notepad_scan_element.txt
+    4. CLI调用 scanner.analyze_scanned_elements("Notepad", scan_file, agent)
+    5. Agent读取扫描文件，think()分析各元素的含义/作用/协作关系
+    6. 分析结果保存到 data/scans/Notepad_scan_element_detail.txt
+    7. CLI调用 manager.register_application("Notepad", scan_file, detail_file)
+    8. 应用信息记录到 application_directory.txt
+    9. CLI向用户展示扫描完成信息
+
+    任务执行流程示例:
+    1. 用户在CLI输入: execute 打开Word创建一份报告
+    2. CLI调用 agent.act("打开Word创建一份报告")
+    3. Agent返回结构化执行计划 JSON
+    4. CLI调用 executor.execute_task(task, plan)
+    5. 执行模块按步骤: [1]启动Word -> [2]定位编辑区 -> [3]输入内容
+    6. 每步结果记录并反馈
+    7. 执行结果/截图传递给Agent进行结果评估
+    8. agent.record_experience() 记录操作经验
+
+tech_stack:
+    - 语言: Python 3.8+
+    - 核心库: pywin32, uiautomation, requests, Pillow
+    - CLI框架: Python内置 cmd 模块
+    - API协议: OpenAI Chat Completions (兼容)
+    - 存储: 文件系统（txt/json）
+    - 平台: Windows
