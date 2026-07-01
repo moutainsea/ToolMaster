@@ -34,5 +34,6 @@ Thumbs.db
 # Logs
 *.log
 
-# Config (API keys)
+# Config (API keys - NEVER commit these!)
+config/config.json
 config/secrets.json

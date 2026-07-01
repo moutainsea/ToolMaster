@@ -1,0 +1,24 @@
+{
+    "agent": {
+        "api_type": "cloud",
+        "api_url": "https://api.deepseek.com/chat/completions",
+        "api_key": "YOUR_DEEPSEEK_API_KEY_HERE",
+        "model": "deepseek-chat",
+        "max_tokens": 4096,
+        "temperature": 0.7
+    },
+    "scanner": {
+        "max_recursion_depth": 10,
+        "scan_delay_ms": 100,
+        "save_format": "txt"
+    },
+    "executor": {
+        "max_retry": 3,
+        "screenshot_enabled": true,
+        "screenshot_dir": "data/screenshots"
+    },
+    "cli": {
+        "prompt_prefix": "ToolMaster > ",
+        "max_history": 50
+    }
+}
